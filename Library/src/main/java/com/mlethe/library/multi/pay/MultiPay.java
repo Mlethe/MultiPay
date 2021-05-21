@@ -43,9 +43,9 @@ public final class MultiPay {
 
     private IOpenApi mOpenApi;
 
-    private WeakReference<MultiMedia> mMultiMedia;
+    private MultiMedia mMultiMedia;
 
-    private WeakReference<OnPayActionListener> mPayListener;
+    private OnPayActionListener mPayListener;
 
     private MultiPay() {
         configs.put(MultiMedia.QQ_PAY, new AppIdPlatform(MultiMedia.QQ_PAY));
@@ -155,7 +155,7 @@ public final class MultiPay {
      * @param media
      */
     protected void setMultiMedia(MultiMedia media) {
-        this.mMultiMedia = new WeakReference<>(media);
+        this.mMultiMedia = media;
     }
 
     /**
@@ -164,7 +164,7 @@ public final class MultiPay {
      * @param listener
      */
     protected void setOnPayListener(OnPayActionListener listener) {
-        this.mPayListener = new WeakReference<>(listener);
+        this.mPayListener = listener;
     }
 
     /**
@@ -212,62 +212,51 @@ public final class MultiPay {
      * @param data
      */
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (mMultiMedia == null) {
-            if (mPayListener != null) {
-                mPayListener.clear();
-                mPayListener = null;
-            }
-            return;
-        }
-        MultiMedia media = mMultiMedia.get();
-        if (MultiMedia.UNION_PAY == media) {
-            // 云闪付
-            if (mPayListener == null) {
-                if (mMultiMedia != null) {
-                    mMultiMedia.clear();
-                    mMultiMedia = null;
-                }
-                return;
-            }
-            OnPayActionListener payListener = mPayListener.get();
-            if (requestCode == 10) {
-                // 支付
-                if (resultCode != Activity.RESULT_OK) {
-                    if (payListener != null) {
-                        payListener.onFailure(media, -1006);
-                        mPayListener.clear();
-                        mPayListener = null;
-                    }
-                    if (mMultiMedia != null) {
-                        mMultiMedia.clear();
-                        mMultiMedia = null;
-                    }
-                    return;
-                }
-                /**
-                 * 支付控件返回字符串:success、fail、cancel 分别代表支付成功，支付失败，支付取消
-                 */
-                String str = data.getStringExtra("pay_result");
-                if ("success".equalsIgnoreCase(str)) {
-                    JSONObject resultJson = new JSONObject();
-                    if (payListener != null) {
-                        payListener.onComplete(media, resultJson);
-                    }
-                } else if ("fail".equalsIgnoreCase(str)) {
-                    if (payListener != null) {
-                        payListener.onFailure(media, -1007);
-                    }
-                } else if ("cancel".equalsIgnoreCase(str)) {
-                    if (payListener != null) {
-                        payListener.onCancel(media);
+        MultiMedia media = mMultiMedia;
+        try {
+            if (MultiMedia.UNION_PAY == media) {
+                // 云闪付
+                if (requestCode == 10) {
+                    // 支付
+                    if (resultCode != Activity.RESULT_OK) {
+                        if (mPayListener != null) {
+                            mPayListener.onFailure(media, -1006);
+                        }
+                    } else {
+                        /*
+                         * 支付控件返回字符串:success、fail、cancel 分别代表支付成功，支付失败，支付取消
+                         */
+                        String str = data.getStringExtra("pay_result");
+                        if ("success".equalsIgnoreCase(str)) {
+                            JSONObject resultJson = new JSONObject();
+                            if (mPayListener != null) {
+                                mPayListener.onComplete(media, resultJson);
+                            }
+                        } else if ("fail".equalsIgnoreCase(str)) {
+                            if (mPayListener != null) {
+                                mPayListener.onFailure(media, -1007);
+                            }
+                        } else if ("cancel".equalsIgnoreCase(str)) {
+                            if (mPayListener != null) {
+                                mPayListener.onCancel(media);
+                            }
+                        }
                     }
                 }
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            release();
         }
-        if (mPayListener != null) {
-            mPayListener.clear();
-            mPayListener = null;
-        }
+    }
+
+    /**
+     * 释放对象
+     */
+    public void release() {
+        mMultiMedia = null;
+        mPayListener = null;
     }
 
     /**
@@ -295,67 +284,10 @@ public final class MultiPay {
                 int errCode = baseResp.errCode;
                 if (type == ConstantsAPI.COMMAND_SENDAUTH) {
                     // 授权登录
-                    /*if (mOauthListener == null) {
-                        return;
-                    }
-                    if (errCode == BaseResp.ErrCode.ERR_OK) {
-                        // 授权成功
-                        SendAuth.Resp sendResp = (SendAuth.Resp) baseResp;
-                        if (isGetUserInfo) {
-                            isGetUserInfo = false;
-                            getUserInfo(sendResp);
-                        } else {
-                            JSONObject jsonObject = new JSONObject();
-                            jsonObject.put("code", getCode(sendResp));
-                            mOauthListener.onComplete(Platform.WECHAT, jsonObject);
-                            mOauthListener = null;
-                        }
-                    } else if (errCode == BaseResp.ErrCode.ERR_USER_CANCEL) {
-                        // 授权取消
-                        mOauthListener.onCancel(Platform.WECHAT);
-                        mOauthListener = null;
-                    } else if (errCode == BaseResp.ErrCode.ERR_AUTH_DENIED) {
-                        // 权限验证失败
-                        mOauthListener.onFail(Platform.WECHAT);
-                        mOauthListener = null;
-                    } else if (errCode == BaseResp.ErrCode.ERR_SENT_FAILED) {
-                        // 授权失败
-                        mOauthListener.onFail(Platform.WECHAT);
-                        mOauthListener = null;
-                    } else {
-                        // 未知错误
-                        mOauthListener.onFail(Platform.WECHAT);
-                        mOauthListener = null;
-                    }*/
                 } else if (type == ConstantsAPI.COMMAND_SENDMESSAGE_TO_WX) {
                     // 分享
-                    /*ShareActionListener listener = WechatShare.getShareActionListener();
-                    if (listener == null) {
-                        return;
-                    }
-                    if (errCode == BaseResp.ErrCode.ERR_OK) {
-                        // 发送成功
-                        listener.onComplete(Platform.WECHAT);
-                    } else if (errCode == BaseResp.ErrCode.ERR_USER_CANCEL) {
-                        // 发送取消
-                        listener.onCancel(Platform.WECHAT);
-                    } else if (errCode == BaseResp.ErrCode.ERR_AUTH_DENIED) {
-                        // 权限验证失败
-                        listener.onFail(Platform.WECHAT);
-                    } else if (errCode == BaseResp.ErrCode.ERR_SENT_FAILED) {
-                        // 发送失败
-                        listener.onFail(Platform.WECHAT);
-                    } else {
-                        // 未知错误
-                        listener.onFail(Platform.WECHAT);
-                    }
-                    WechatShare.setShareActionListener(null);*/
                 } else if (type == ConstantsAPI.COMMAND_PAY_BY_WX) {
                     // 支付
-                    if (mPayListener == null) {
-                        return;
-                    }
-                    OnPayActionListener payListener = mPayListener.get();
                     if (errCode == BaseResp.ErrCode.ERR_OK) {
                         // 支付成功
                         PayResp payResp = (PayResp) baseResp;
@@ -364,29 +296,35 @@ public final class MultiPay {
                         jsonObject.put("openId", payResp.openId);
                         jsonObject.put("returnKey", payResp.returnKey);
                         jsonObject.put("prepayId", payResp.prepayId);
-                        payListener.onComplete(media, jsonObject);
+                        if (mPayListener != null) {
+                            mPayListener.onComplete(media, jsonObject);
+                        }
                     } else if (errCode == BaseResp.ErrCode.ERR_USER_CANCEL) {
                         // 支付取消
-                        payListener.onCancel(media);
+                        if (mPayListener != null) {
+                            mPayListener.onCancel(media);
+                        }
                     } else if (errCode == BaseResp.ErrCode.ERR_AUTH_DENIED) {
                         // 权限验证失败
-                        payListener.onFailure(media, errCode);
+                        if (mPayListener != null) {
+                            mPayListener.onFailure(media, errCode);
+                        }
                     } else if (errCode == BaseResp.ErrCode.ERR_SENT_FAILED) {
                         // 授权失败
-                        payListener.onFailure(media, errCode);
+                        if (mPayListener != null) {
+                            mPayListener.onFailure(media, errCode);
+                        }
                     } else {
                         // 未知错误
-                        payListener.onFailure(media, errCode);
+                        if (mPayListener != null) {
+                            mPayListener.onFailure(media, errCode);
+                        }
                     }
-                    mPayListener.clear();
-                    mPayListener = null;
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-                if (mPayListener != null) {
-                    mPayListener.clear();
-                    mPayListener = null;
-                }
+            } finally {
+                release();
             }
         }
     }
@@ -400,10 +338,6 @@ public final class MultiPay {
         public void onOpenResponse(BaseResponse response) {
             try {
                 if (response instanceof PayResponse) {
-                    if (mPayListener == null) {
-                        return;
-                    }
-                    OnPayActionListener payListener = mPayListener.get();
                     PayResponse payResponse = (PayResponse) response;
                     int code = payResponse.retCode;
                     if (payResponse.isSuccess()) {
@@ -417,28 +351,34 @@ public final class MultiPay {
                         jsonObject.put("callbackUrl", payResponse.callbackUrl);
                         jsonObject.put("totalFee", payResponse.totalFee);
                         jsonObject.put("spData", payResponse.spData);
-                        payListener.onComplete(MultiMedia.QQ_PAY, jsonObject);
+                        if (mPayListener != null) {
+                            mPayListener.onComplete(MultiMedia.QQ_PAY, jsonObject);
+                        }
                     } else if (code == -1) {
                         // 用户取消
-                        payListener.onCancel(MultiMedia.QQ_PAY);
+                        if (mPayListener != null) {
+                            mPayListener.onCancel(MultiMedia.QQ_PAY);
+                        }
                     } else if (code == -2) {
                         // 登录态超时
-                        payListener.onFailure(MultiMedia.QQ_PAY, code);
+                        if (mPayListener != null) {
+                            mPayListener.onFailure(MultiMedia.QQ_PAY, code);
+                        }
                     } else if (code == -3) {
                         // 重复提交订单
-                        payListener.onFailure(MultiMedia.QQ_PAY, code);
+                        if (mPayListener != null) {
+                            mPayListener.onFailure(MultiMedia.QQ_PAY, code);
+                        }
                     } else {
-                        payListener.onFailure(MultiMedia.QQ_PAY, code);
+                        if (mPayListener != null) {
+                            mPayListener.onFailure(MultiMedia.QQ_PAY, code);
+                        }
                     }
-                    mPayListener.clear();
-                    mPayListener = null;
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-                if (mPayListener != null) {
-                    mPayListener.clear();
-                    mPayListener = null;
-                }
+            } finally {
+                release();
             }
         }
     }
