@@ -12,7 +12,7 @@ allprojects {
 }
 
 dependencies {
-    implementation 'com.github.Mlethe:MultiPay:1.0.1'
+    implementation 'com.github.Mlethe:MultiPay:1.0.3'
 }
 ```
 

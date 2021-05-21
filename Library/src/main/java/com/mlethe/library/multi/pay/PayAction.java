@@ -33,7 +33,6 @@ public class PayAction {
      * 支付方式
      */
     private MultiMedia mMultiMedia;
-
     /**
      * 支付监听
      */
@@ -261,6 +260,7 @@ public class PayAction {
 
     /**
      * QQ钱包支付序号,用于标识此次支付
+     *
      * @param serialNumber
      * @return
      */
@@ -326,6 +326,7 @@ public class PayAction {
 
     /**
      * QQ钱包商户号
+     *
      * @param bargainorId
      */
     public PayAction setBargainorId(String bargainorId) {
@@ -335,6 +336,7 @@ public class PayAction {
 
     /**
      * 云闪付交易流水号
+     *
      * @param tn
      * @return
      */
@@ -356,22 +358,22 @@ public class PayAction {
             if (api == null) {
                 if (mPayListener != null) {
                     mPayListener.onFailure(mMultiMedia, -1001);
-                    mPayListener = null;
                 }
-                return false;
+            } else {
+                Platform platForm = MultiPay.getInstance().getPlatForm(mMultiMedia);
+                MultiPay.getInstance().setOnPayListener(mPayListener);
+                PayReq request = new PayReq();
+                request.appId = platForm.getAppId();
+                request.partnerId = partnerId;
+                request.prepayId = prepayId;
+                request.packageValue = packageValue;
+                request.nonceStr = nonceStr;
+                request.timeStamp = String.valueOf(timeStamp);
+                request.sign = sign;
+                request.extData = extData;
+                api.sendReq(request);
             }
-            Platform platForm = MultiPay.getInstance().getPlatForm(mMultiMedia);
-            MultiPay.getInstance().setOnPayListener(mPayListener);
-            PayReq request = new PayReq();
-            request.appId = platForm.getAppId();
-            request.partnerId = partnerId;
-            request.prepayId = prepayId;
-            request.packageValue = packageValue;
-            request.nonceStr = nonceStr;
-            request.timeStamp = String.valueOf(timeStamp);
-            request.sign = sign;
-            api.sendReq(request);
-            mPayListener = null;
+            release();
         } else if (MultiMedia.ALIPAY == mMultiMedia) {
             // 支付宝
             if (orderInfo != null && !orderInfo.isEmpty()) {
@@ -381,9 +383,6 @@ public class PayAction {
                         PayTask alipay = new PayTask(activity);
                         Map<String, String> result = alipay.payV2(orderInfo, true);
                         final AliPayResult payResult = new AliPayResult(result);
-                        if (mPayListener == null) {
-                            return;
-                        }
                         int status = payResult.getResultStatus();
                         if (status == 9000) {
                             // 订单支付成功
@@ -394,7 +393,9 @@ public class PayAction {
                             } catch (Exception e) {
                                 e.printStackTrace();
                             }
-                            mPayListener.onComplete(mMultiMedia, jsonObject);
+                            if (mPayListener != null) {
+                                mPayListener.onComplete(mMultiMedia, jsonObject);
+                            }
                         } else {
                             /**
                              * 8000：正在处理中，支付结果未知（有可能已经支付成功），请查询商户订单列表中订单的支付状态
@@ -405,9 +406,11 @@ public class PayAction {
                              * 6004：支付结果未知（有可能已经支付成功），请查询商户订单列表中订单的支付状态
                              * 其它支付错误
                              */
-                            mPayListener.onFailure(mMultiMedia, status);
+                            if (mPayListener != null) {
+                                mPayListener.onFailure(mMultiMedia, status);
+                            }
                         }
-                        mPayListener = null;
+                        release();
                     }
                 }).start();
             } else if (qrcode != null && !qrcode.isEmpty()) {
@@ -422,8 +425,9 @@ public class PayAction {
                     e.printStackTrace();
                     if (mPayListener != null) {
                         mPayListener.onFailure(mMultiMedia, -1002);
-                        mPayListener = null;
                     }
+                } finally {
+                    release();
                 }
             } else if (url != null && !url.isEmpty()) {
                 // H5唤起支付宝支付
@@ -432,9 +436,6 @@ public class PayAction {
                     @Override
                     public void onPayResult(H5PayResultModel result) {
                         int code = Integer.parseInt(result.getResultCode());
-                        if (mPayListener == null) {
-                            return;
-                        }
                         if (code == 9000) {
                             // 订单支付成功
                             JSONObject jsonObject = new JSONObject();
@@ -443,7 +444,9 @@ public class PayAction {
                             } catch (Exception e) {
                                 e.printStackTrace();
                             }
-                            mPayListener.onComplete(mMultiMedia, jsonObject);
+                            if (mPayListener != null) {
+                                mPayListener.onComplete(mMultiMedia, jsonObject);
+                            }
                         } else {
                             /**
                              * 8000：正在处理中，支付结果未知（有可能已经支付成功），请查询商户订单列表中订单的支付状态
@@ -454,9 +457,11 @@ public class PayAction {
                              * 6004：支付结果未知（有可能已经支付成功），请查询商户订单列表中订单的支付状态
                              * 其它支付错误
                              */
-                            mPayListener.onFailure(mMultiMedia, code);
+                            if (mPayListener != null) {
+                                mPayListener.onFailure(mMultiMedia, code);
+                            }
                         }
-                        mPayListener = null;
+                        release();
                     }
                 });
             } else if (authInfo != null && !authInfo.isEmpty()) {
@@ -467,9 +472,6 @@ public class PayAction {
                         AuthTask alipay = new AuthTask(activity);
                         Map<String, String> result = alipay.authV2(orderInfo, true);
                         final AuthResult authResult = new AuthResult(result, true);
-                        if (mPayListener == null) {
-                            return;
-                        }
                         int status = authResult.getResultStatus();
                         int code = authResult.getResultCode();
                         if (status == 9000 && code == 200) {
@@ -481,18 +483,22 @@ public class PayAction {
                             } catch (Exception e) {
                                 e.printStackTrace();
                             }
-                            mPayListener.onComplete(mMultiMedia, jsonObject);
+                            if (mPayListener != null) {
+                                mPayListener.onComplete(mMultiMedia, jsonObject);
+                            }
                         } else {
-                            mPayListener.onFailure(mMultiMedia, code);
+                            if (mPayListener != null) {
+                                mPayListener.onFailure(mMultiMedia, code);
+                            }
                         }
-                        mPayListener = null;
+                        release();
                     }
                 }).start();
             } else {
                 if (mPayListener != null) {
                     mPayListener.onFailure(mMultiMedia, -1003);
-                    mPayListener = null;
                 }
+                release();
             }
         } else if (MultiMedia.QQ_PAY == mMultiMedia) {
             // QQ钱包
@@ -500,32 +506,31 @@ public class PayAction {
             if (api == null) {
                 if (mPayListener != null) {
                     mPayListener.onFailure(mMultiMedia, -1001);
-                    mPayListener = null;
                 }
-                return false;
-            }
-            Platform platForm = MultiPay.getInstance().getPlatForm(mMultiMedia);
-            PayApi request = new PayApi();
-            request.appId = platForm.getAppId();
-            request.serialNumber = serialNumber;
-            request.callbackScheme = callbackScheme;
-            request.tokenId = tokenId;
-            request.pubAcc = pubAcc;
-            request.pubAccHint = pubAccHint;
-            request.nonce = nonceStr;
-            request.timeStamp = timeStamp;
-            request.bargainorId = bargainorId;
-            request.sig = sign;
-            request.sigType = signType;
-            if (request.checkParams()) {
-                MultiPay.getInstance().setOnPayListener(mPayListener);
-                api.execApi(request);
             } else {
-                if (mPayListener != null) {
-                    mPayListener.onFailure(mMultiMedia, -1004);
-                    mPayListener = null;
+                Platform platForm = MultiPay.getInstance().getPlatForm(mMultiMedia);
+                PayApi request = new PayApi();
+                request.appId = platForm.getAppId();
+                request.serialNumber = serialNumber;
+                request.callbackScheme = callbackScheme;
+                request.tokenId = tokenId;
+                request.pubAcc = pubAcc;
+                request.pubAccHint = pubAccHint;
+                request.nonce = nonceStr;
+                request.timeStamp = timeStamp;
+                request.bargainorId = bargainorId;
+                request.sig = sign;
+                request.sigType = signType;
+                if (request.checkParams()) {
+                    MultiPay.getInstance().setOnPayListener(mPayListener);
+                    api.execApi(request);
+                } else {
+                    if (mPayListener != null) {
+                        mPayListener.onFailure(mMultiMedia, -1004);
+                    }
                 }
             }
+            release();
         } else if (MultiMedia.UNION_PAY == mMultiMedia) {
             // 云闪付
             if (tn != null && !tn.isEmpty()) {
@@ -535,10 +540,15 @@ public class PayAction {
             } else {
                 if (mPayListener != null) {
                     mPayListener.onFailure(mMultiMedia, -1005);
-                    mPayListener = null;
                 }
             }
+            release();
         }
         return false;
+    }
+
+    private void release() {
+        mMultiMedia = null;
+        mPayListener = null;
     }
 }
