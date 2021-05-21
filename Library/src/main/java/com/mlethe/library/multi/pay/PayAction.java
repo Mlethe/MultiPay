@@ -547,6 +547,9 @@ public class PayAction {
         return false;
     }
 
+    /**
+     * 释放内存
+     */
     private void release() {
         mMultiMedia = null;
         mPayListener = null;
